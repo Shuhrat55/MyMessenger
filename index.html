@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <title>ShuMI • Вход</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  
+  <div class="auth-wrapper">
+    
+    <!-- Логотип ShuMI -->
+    <div class="auth-logo">
+      <div class="shumi-logo">ShuMI</div>
+      <p class="shumi-subtitle">мессенджер</p>
+    </div>
+
+    <!-- Карточка -->
+    <div class="auth-card">
+      
+      <!-- Переключатель -->
+      <div class="auth-tabs">
+        <span class="auth-tab active" id="loginTab">Вход</span>
+        <span class="auth-tab" id="registerTab">Регистрация</span>
+      </div>
+
+      <!-- Форма -->
+      <div class="auth-form">
+        <input type="text" id="username" placeholder="Никнейм" class="auth-input" autocomplete="off">
+        <input type="email" id="email" placeholder="Email" class="auth-input" autocomplete="off">
+        <input type="password" id="password" placeholder="Пароль" class="auth-input">
+        
+        <button class="auth-btn" id="submitBtn">Войти</button>
+      </div>
+
+      <!-- Статус -->
+      <p class="auth-status" id="authStatus"></p>
+    </div>
+
+  </div>
+
+  <script type="module">
+    import { db } from "./firebase-config.js";
+    import { ref, set, get, child } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js";
+
+    let mode = 'login';
+
+    // При входе скрываем email
+    document.getElementById('email').style.display = 'none';
+
+    document.getElementById('loginTab').addEventListener('click', () => {
+      mode = 'login';
+      document.getElementById('loginTab').classList.add('active');
+      document.getElementById('registerTab').classList.remove('active');
+      document.getElementById('submitBtn').textContent = 'Войти';
+      document.getElementById('email').style.display = 'none';
+    });
+
+    document.getElementById('registerTab').addEventListener('click', () => {
+      mode = 'register';
+      document.getElementById('registerTab').classList.add('active');
+      document.getElementById('loginTab').classList.remove('active');
+      document.getElementById('submitBtn').textContent = 'Зарегистрироваться';
+      document.getElementById('email').style.display = 'block';
+    });
+
+    document.getElementById('submitBtn').addEventListener('click', () => {
+      const username = document.getElementById('username').value.trim().toLowerCase();
+      const email = document.getElementById('email').value.trim().toLowerCase();
+      const password = document.getElementById('password').value.trim();
+      const statusEl = document.getElementById('authStatus');
+
+      if (!username || !password) {
+        statusEl.textContent = 'Заполните все поля';
+        statusEl.style.color = '#ff4444';
+        return;
+      }
+
+      if (mode === 'register' && !email) {
+        statusEl.textContent = 'Введите email';
+        statusEl.style.color = '#ff4444';
+        return;
+      }
+
+      if (username.length < 3) {
+        statusEl.textContent = 'Никнейм минимум 3 символа';
+        statusEl.style.color = '#ff4444';
+        return;
+      }
+
+      if (password.length < 4) {
+        statusEl.textContent = 'Пароль минимум 4 символов';
+        statusEl.style.color = '#ff4444';
+        return;
+      }
+
+      if (mode === 'register' && !email.includes('@')) {
+        statusEl.textContent = 'Введите корректный email';
+        statusEl.style.color = '#ff4444';
+        return;
+      }
+
+      if (!/^[a-zA-Z0-9_]+$/.test(username)) {
+        statusEl.textContent = 'Никнейм: только буквы, цифры и _';
+        statusEl.style.color = '#ff4444';
+        return;
+      }
+
+      const userRef = ref(db, 'users/' + username);
+
+      if (mode === 'register') {
+        get(child(ref(db), 'users/' + username)).then((snapshot) => {
+          if (snapshot.exists()) {
+            statusEl.textContent = 'Никнейм уже занят';
+            statusEl.style.color = '#ff4444';
+          } else {
+            set(userRef, {
+              username: username,
+              email: email,
+              password: password,
+              createdAt: new Date().toISOString()
+            }).then(() => {
+              statusEl.textContent = 'Регистрация успешна!';
+              statusEl.style.color = '#4caf50';
+              localStorage.setItem('currentUser', username);
+              setTimeout(() => window.location.href = 'chat.html', 800);
+            }).catch((error) => {
+              statusEl.textContent = 'Ошибка: ' + error.message;
+              statusEl.style.color = '#ff4444';
+            });
+          }
+        });
+      } else {
+        get(child(ref(db), 'users/' + username)).then((snapshot) => {
+          if (snapshot.exists()) {
+            const userData = snapshot.val();
+            if (userData.password === password) {
+              statusEl.textContent = 'Вход выполнен!';
+              statusEl.style.color = '#4caf50';
+              localStorage.setItem('currentUser', username);
+              setTimeout(() => window.location.href = 'chat.html', 500);
+            } else {
+              statusEl.textContent = 'Неверный пароль';
+              statusEl.style.color = '#ff4444';
+            }
+          } else {
+            statusEl.textContent = 'Пользователь не найден';
+            statusEl.style.color = '#ff4444';
+          }
+        });
+      }
+    });
+
+    document.addEventListener('keypress', (e) => {
+      if (e.key === 'Enter') {
+        document.getElementById('submitBtn').click();
+      }
+    });
+
+    if (localStorage.getItem('currentUser')) {
+      window.location.href = 'chat.html';
+    }
+  </script>
+</body>
+</html>

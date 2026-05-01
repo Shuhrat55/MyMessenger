@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <title>ShuMI • Соборная 5/7</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  
+  <div class="chat-wrapper">
+    
+    <!-- Верхняя панель -->
+    <div class="chat-header">
+      <div class="shumi-logo-small">Sh</div>
+      <div class="chat-info">
+        <span class="chat-title">Соборная 5/7</span>
+        <span class="online-count" id="onlineCount">0 в сети</span>
+      </div>
+      <button class="logout-btn" id="logoutBtn">
+        <i class="fas fa-sign-out-alt"></i>
+      </button>
+    </div>
+
+    <!-- Сообщения -->
+    <div class="chat-messages" id="chatMessages">
+      <div class="chat-empty">
+        <div class="shumi-logo-large">ShuMI</div>
+        <p>Чат пуст</p>
+        <p style="font-size:11px; color:#664466;">Будьте первым кто напишет</p>
+      </div>
+    </div>
+
+    <!-- Ввод -->
+    <div class="chat-input-row">
+      <input type="text" id="messageInput" placeholder="Сообщение..." class="chat-input" autocomplete="off" maxlength="500">
+      <button class="send-btn" id="sendBtn">
+        <i class="fas fa-paper-plane"></i>
+      </button>
+    </div>
+
+  </div>
+
+  <script type="module">
+    import { db } from "./firebase-config.js";
+    import { ref, push, onChildAdded, set, onDisconnect } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js";
+
+    const currentUser = localStorage.getItem('currentUser');
+    if (!currentUser) {
+      window.location.href = 'index.html';
+    }
+
+    // Онлайн
+    const onlineRef = ref(db, 'online/' + currentUser);
+    
+    set(onlineRef, {
+      username: currentUser,
+      lastSeen: Date.now()
+    });
+
+    onDisconnect(onlineRef).remove();
+
+    function updateOnlineCount() {
+      import("https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js")
+        .then(({ get, child, ref }) => {
+          get(child(ref(db), 'online')).then((snapshot) => {
+            const count = snapshot.exists() ? Object.keys(snapshot.val()).length : 0;
+            document.getElementById('onlineCount').textContent = count + ' в сети';
+          });
+        });
+    }
+
+    const onlineUsersRef = ref(db, 'online');
+    onChildAdded(onlineUsersRef, updateOnlineCount);
+    updateOnlineCount();
+
+    // Сообщения
+    const messagesRef = ref(db, 'messages');
+    
+    onChildAdded(messagesRef, (snapshot) => {
+      const msg = snapshot.val();
+      addMessageToChat(msg.username, msg.text, msg.timestamp);
+      scrollToBottom();
+    });
+
+    function addMessageToChat(username, text, timestamp) {
+      const messagesDiv = document.getElementById('chatMessages');
+      
+      const emptyEl = messagesDiv.querySelector('.chat-empty');
+      if (emptyEl) emptyEl.remove();
+
+      const date = new Date(timestamp);
+      const time = date.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' });
+      
+      const isMyMessage = (username === currentUser);
+      
+      const msgDiv = document.createElement('div');
+      msgDiv.className = 'message' + (isMyMessage ? ' my-message' : '');
+      
+      msgDiv.innerHTML = `
+        <div class="message-bubble">
+          <div class="message-header">
+            <span class="message-username">${escapeHtml(username)}</span>
+            <span class="message-time">${time}</span>
+          </div>
+          <div class="message-text">${escapeHtml(text)}</div>
+        </div>
+      `;
+      
+      messagesDiv.appendChild(msgDiv);
+    }
+
+    function scrollToBottom() {
+      const messagesDiv = document.getElementById('chatMessages');
+      setTimeout(() => {
+        messagesDiv.scrollTop = messagesDiv.scrollHeight;
+      }, 100);
+    }
+
+    function escapeHtml(text) {
+      const div = document.createElement('div');
+      div.textContent = text;
+      return div.innerHTML;
+    }
+
+    // Отправка
+    function sendMessage() {
+      const input = document.getElementById('messageInput');
+      const text = input.value.trim();
+      
+      if (!text) return;
+      if (text.length > 500) {
+        alert('Максимум 500 символов');
+        return;
+      }
+
+      push(messagesRef, {
+        username: currentUser,
+        text: text,
+        timestamp: Date.now()
+      });
+
+      input.value = '';
+      input.focus();
+    }
+
+    document.getElementById('sendBtn').addEventListener('click', sendMessage);
+    
+    document.getElementById('messageInput').addEventListener('keypress', (e) => {
+      if (e.key === 'Enter') {
+        sendMessage();
+      }
+    });
+
+    // Выход
+    document.getElementById('logoutBtn').addEventListener('click', () => {
+      set(onlineRef, null);
+      localStorage.removeItem('currentUser');
+      window.location.href = 'index.html';
+    });
+
+    setInterval(() => {
+      set(onlineRef, {
+        username: currentUser,
+        lastSeen: Date.now()
+      });
+    }, 30000);
+
+    document.getElementById('messageInput').focus();
+
+    console.log('💜 ShuMI чат • Соборная 5/7 •', currentUser);
+  </script>
+</body>
+</html>
